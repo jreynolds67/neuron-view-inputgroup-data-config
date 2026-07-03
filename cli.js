@@ -80,10 +80,16 @@ function makeClient(scheme, port) {
 }
 
 // ---------- TSL logic ----------
-const TSL_RE = /^tsl::(\d+)::(\d+)$/;
+// TSL input strings are "tsl::<screen>::<display>::<suboption>", where suboption is
+// text / lefttally / righttally. (The API spec only shows the 3-part form, but real
+// firmware uses this 4-part form.) We also tolerate a 3-part form with no suboption.
+const TSL_RE = /^tsl::(\d+)::(\d+)(?:::([a-z]+))?$/i;
 const isTsl = (b) => typeof b?.input === 'string' && TSL_RE.test(b.input);
-function parseTsl(input) { const m = String(input).match(TSL_RE); return m ? { screen: +m[1], display: +m[2] } : null; }
-const fmtTsl = (s, d) => `tsl::${s}::${d}`;
+function parseTsl(input) {
+  const m = String(input).match(TSL_RE);
+  return m ? { screen: +m[1], display: +m[2], sub: m[3] || null } : null;
+}
+const fmtTsl = (s, d, sub) => sub ? `tsl::${s}::${d}::${sub}` : `tsl::${s}::${d}`;
 
 // operator number carried in the group name ("Input 12", "12 - CAM"...). First integer.
 function groupNumber(name) { const m = String(name ?? '').match(/\d+/); return m ? +m[0] : null; }
@@ -108,7 +114,7 @@ function planBindings(sourceGroup, targetGroup, sourceNum, targetNum) {
   const tgtNonTsl = (targetGroup.bindings || []).filter((b) => !isTsl(b));
   const newTsl = srcTsl.map((b) => {
     const p = parseTsl(b.input);
-    return { ...b, input: fmtTsl(p.screen, p.display + offset) };
+    return { ...b, input: fmtTsl(p.screen, p.display + offset, p.sub) };
   });
   const diffs = srcTsl.map((b, i) => ({ output: b.output, from: b.input, to: newTsl[i].input }));
   return { bindings: [...tgtNonTsl, ...newTsl], diffs, offset, keptNonTsl: tgtNonTsl.length };
@@ -152,7 +158,8 @@ async function cmdDump(boardFetch, opts) {
     console.log(`   TSL bindings (${tsl.length}):`);
     for (const b of tsl) {
       const p = parseTsl(b.input);
-      console.log(`     input=${b.input}  (screen ${p.screen}, display ${p.display})   ->  output=${b.output}`);
+      const sub = p.sub ? `, ${p.sub}` : '';
+      console.log(`     input=${b.input}  (screen ${p.screen}, display ${p.display}${sub})   ->  output=${b.output}`);
     }
     if (other.length) {
       console.log(`   other bindings (${other.length}):`);
