@@ -1,17 +1,21 @@
 # Portainer stack for the Neuron View TSL bulk-config CLI.
 #
-# This is a RUN-TO-COMPLETION CLI, not a long-running service. It runs, does its work,
-# and exits. So `restart` is "no" — you don't want Portainer relaunching it in a loop.
-# To run a different command (dump vs copy, dry-run vs --apply), edit `command:` below and
-# redeploy the stack, or run it ad-hoc with `docker run` (see the Dockerfile comments).
+# Deploy this in Portainer as a Git-backed stack:
+#   Stacks -> Add stack -> Repository
+#   Repository URL: https://github.com/YOUR_USER/neuron-tsl-bulk
+#   Compose path:   docker-compose.yml
 #
-# Networking matches the existing Companion / neuron-* pattern:
-#   - image built locally; pull_policy: never stops Portainer trying to pull it
-#   - macvlan gives the container its own LAN IP, so it reaches the boards directly.
-#     A CLI makes no inbound connections, so it binds no port and needs no `ports:` block.
+# The container stays running idle. To use the tool, open the container's Console in
+# Portainer (or `docker exec -it neuron-tsl-bulk sh`) and run, targeting any board:
+#   node cli.js dump --ip 10.0.0.42 --group 1
+#   node cli.js copy --ip 10.0.0.42 --targets 2-36           (dry run)
+#   node cli.js copy --ip 10.0.0.42 --targets 2-36 --apply   (writes)
 #
-# If you already have a shared external macvlan network, replace the whole `networks:`
-# block with:
+# Nothing board-specific lives here — the board is chosen with --ip at run time.
+#
+# Networking matches the existing Companion / neuron-* pattern: a macvlan network gives
+# the container its own LAN IP so it can reach the boards. If you already have a shared
+# external macvlan network, replace the networks block with:
 #     networks:
 #       lan:
 #         external: true
@@ -24,18 +28,7 @@ services:
     image: neuron-tsl-bulk:latest
     pull_policy: never
     container_name: neuron-tsl-bulk
-    restart: "no"
-    environment:
-      BOARD_SCHEME: "https"
-      BOARD_PORT: "443"
-      BOARD_TLS_REJECT_UNAUTHORIZED: "false"
-      BOARD_IP: "10.0.0.42"          # <-- your board's IP (or pass --ip in command:)
-    # The command the container runs on start. Start with a dry-run copy; review the
-    # container logs; then change to add --apply and redeploy to actually write.
-    #   dump:        ["dump", "--group", "1"]
-    #   dry-run:     ["copy", "--targets", "2-36"]
-    #   apply:       ["copy", "--targets", "2-36", "--apply"]
-    command: ["copy", "--targets", "2-36"]
+    restart: unless-stopped
     networks:
       lan:
         ipv4_address: 10.0.0.60      # <-- a free LAN IP for this container
