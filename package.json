@@ -1,0 +1,14 @@
+{
+  "name": "neuron-tsl-bulk",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "CLI to bulk-configure EVS Neuron View input-group TSL tally wiring by replicating one group across the others.",
+  "bin": { "neuron-tsl-bulk": "cli.js" },
+  "scripts": {
+    "dump": "node cli.js dump",
+    "copy": "node cli.js copy"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": { "undici": "^6.19.8" }
+}
