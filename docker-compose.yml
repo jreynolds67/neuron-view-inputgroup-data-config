@@ -1,0 +1,51 @@
+# Portainer stack for the Neuron View TSL bulk-config CLI.
+#
+# This is a RUN-TO-COMPLETION CLI, not a long-running service. It runs, does its work,
+# and exits. So `restart` is "no" — you don't want Portainer relaunching it in a loop.
+# To run a different command (dump vs copy, dry-run vs --apply), edit `command:` below and
+# redeploy the stack, or run it ad-hoc with `docker run` (see the Dockerfile comments).
+#
+# Networking matches the existing Companion / neuron-* pattern:
+#   - image built locally; pull_policy: never stops Portainer trying to pull it
+#   - macvlan gives the container its own LAN IP, so it reaches the boards directly.
+#     A CLI makes no inbound connections, so it binds no port and needs no `ports:` block.
+#
+# If you already have a shared external macvlan network, replace the whole `networks:`
+# block with:
+#     networks:
+#       lan:
+#         external: true
+#         name: <your-existing-macvlan-net>
+# and delete the driver/ipam definition at the bottom.
+
+services:
+  neuron-tsl-bulk:
+    build: .
+    image: neuron-tsl-bulk:latest
+    pull_policy: never
+    container_name: neuron-tsl-bulk
+    restart: "no"
+    environment:
+      BOARD_SCHEME: "https"
+      BOARD_PORT: "443"
+      BOARD_TLS_REJECT_UNAUTHORIZED: "false"
+      BOARD_IP: "10.0.0.42"          # <-- your board's IP (or pass --ip in command:)
+    # The command the container runs on start. Start with a dry-run copy; review the
+    # container logs; then change to add --apply and redeploy to actually write.
+    #   dump:        ["dump", "--group", "1"]
+    #   dry-run:     ["copy", "--targets", "2-36"]
+    #   apply:       ["copy", "--targets", "2-36", "--apply"]
+    command: ["copy", "--targets", "2-36"]
+    networks:
+      lan:
+        ipv4_address: 10.0.0.60      # <-- a free LAN IP for this container
+
+networks:
+  lan:
+    driver: macvlan
+    driver_opts:
+      parent: eth0                   # <-- your host's LAN interface
+    ipam:
+      config:
+        - subnet: 10.0.0.0/24        # <-- your LAN subnet
+          gateway: 10.0.0.1          # <-- your LAN gateway
