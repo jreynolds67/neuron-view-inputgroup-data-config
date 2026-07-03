@@ -152,7 +152,8 @@ async function cmdDump(boardFetch, opts) {
     if (!g) { console.log(`  group ${num}: NOT FOUND`); continue; }
     const tsl = (g.bindings || []).filter(isTsl);
     const other = (g.bindings || []).filter((b) => !isTsl(b));
-    console.log(`── group #${g.num}  "${g.name}"  (uuid ${g.uuid})`);
+    const tag = g.predefined ? '  [PREDEFINED — built-in, e.g. pattern gen]' : '';
+    console.log(`── group #${g.num}  "${g.name}"  (uuid ${g.uuid})${tag}`);
     console.log(`   video=${g.videoUuid || '-'}  audio=${g.audioUuid || '-'}  data=${g.dataUuid || '-'}`);
     if (!g.bindings || g.bindings.length === 0) { console.log('   (no bindings)\n'); continue; }
     console.log(`   TSL bindings (${tsl.length}):`);
@@ -173,19 +174,34 @@ async function cmdDump(boardFetch, opts) {
 
 async function cmdCopy(boardFetch, opts) {
   const ip = requireIp(opts);
-  const sourceNum = opts.source ? Number(opts.source) : 1;
+  const groups = await loadGroups(boardFetch, ip);
   const apply = opts.apply === true;
 
-  const groups = await loadGroups(boardFetch, ip);
-  const source = findByNum(groups, sourceNum);
-  if (!source) throw new Error(`source group #${sourceNum} not found`);
+  // Pick the source group. If --source is given, use it; otherwise default to the
+  // lowest-numbered group that actually has TSL bindings (group 1 may not exist, or may
+  // be empty, on some firmware).
+  let source;
+  if (opts.source) {
+    const sourceNum = Number(opts.source);
+    source = findByNum(groups, sourceNum);
+    if (!source) {
+      const avail = groups.map((g) => g.num).sort((a, b) => a - b).join(', ');
+      throw new Error(`source group #${sourceNum} not found. Available groups: ${avail}`);
+    }
+  } else {
+    source = [...groups]
+      .sort((a, b) => a.num - b.num)
+      .find((g) => (g.bindings || []).some(isTsl));
+    if (!source) throw new Error('no group on this board has TSL bindings; specify one with --source');
+    console.log(`(no --source given; defaulting to lowest-numbered group with TSL bindings)`);
+  }
 
   const srcTslCount = (source.bindings || []).filter(isTsl).length;
-  if (srcTslCount === 0) throw new Error(`source group #${sourceNum} has no TSL bindings to copy`);
+  if (srcTslCount === 0) throw new Error(`source group #${source.num} has no TSL bindings to copy`);
 
   const targetNums = opts.targets
-    ? parseTargets(opts.targets).filter((n) => n !== sourceNum)
-    : groups.map((g) => g.num).filter((n) => n !== sourceNum);
+    ? parseTargets(opts.targets).filter((n) => n !== source.num)
+    : groups.map((g) => g.num).filter((n) => n !== source.num);
 
   console.log(`\nSource: #${source.num} "${source.name}" — ${srcTslCount} TSL binding(s)`);
   console.log(`Mode:   ${apply ? 'APPLY (writing to board)' : 'DRY RUN (no writes)'}`);
