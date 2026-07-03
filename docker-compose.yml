@@ -12,15 +12,7 @@
 #   node cli.js copy --ip 10.0.0.42 --targets 2-36 --apply   (writes)
 #
 # Nothing board-specific lives here — the board is chosen with --ip at run time.
-#
-# Networking matches the existing Companion / neuron-* pattern: a macvlan network gives
-# the container its own LAN IP so it can reach the boards. If you already have a shared
-# external macvlan network, replace the networks block with:
-#     networks:
-#       lan:
-#         external: true
-#         name: <your-existing-macvlan-net>
-# and delete the driver/ipam definition at the bottom.
+# Attach the container to your network in Portainer after deploying.
 
 services:
   neuron-tsl-bulk:
@@ -29,16 +21,3 @@ services:
     pull_policy: never
     container_name: neuron-tsl-bulk
     restart: unless-stopped
-    networks:
-      lan:
-        ipv4_address: 10.0.0.60      # <-- a free LAN IP for this container
-
-networks:
-  lan:
-    driver: macvlan
-    driver_opts:
-      parent: eth0                   # <-- your host's LAN interface
-    ipam:
-      config:
-        - subnet: 10.0.0.0/24        # <-- your LAN subnet
-          gateway: 10.0.0.1          # <-- your LAN gateway
